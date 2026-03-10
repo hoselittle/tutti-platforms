@@ -36,8 +36,9 @@ export default function SearchPage() {
       const minRating = searchParams.get("min_rating");
       const sightReading = searchParams.get("sight_reading");
 
-      if (postcode) {
-        query = query.eq("postcode", postcode);
+      if (searchParams.postcode) {
+        // ✅ Using .eq() ensures it only returns exact matches (e.g., exactly '2000')
+        query = query.eq("postcode", searchParams.postcode);
       }
       if (ameb === "true") {
         query = query.eq("ameb_experience", true);

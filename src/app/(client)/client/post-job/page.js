@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { geocodeLocation } from '@/lib/utils';
+import toast from 'react-hot-toast'; // 👉 Import the toast function
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -16,7 +18,6 @@ export default function PostJobPage() {
   const [clientProfile, setClientProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -24,6 +25,7 @@ export default function PostJobPage() {
     grade: '',
     exam_date: '',
     repertoire: '',
+    venue_address: '',
     location_postcode: '',
     required_hours: '1',
     preferred_dates: '',
@@ -59,7 +61,7 @@ export default function PostJobPage() {
     };
 
     loadProfile();
-  }, []);
+  }, [router, supabase]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,29 +70,44 @@ export default function PostJobPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
 
-    // Validation
+    // 👉 Toast Validation Checks
     if (!formData.title.trim()) {
-      setError('Please enter a job title');
+      toast.error('Please enter a job title');
       return;
     }
     if (!formData.exam_type) {
-      setError('Please select an exam type');
+      toast.error('Please select an exam type');
       return;
     }
     if (!formData.repertoire.trim()) {
-      setError('Please enter repertoire details');
+      toast.error('Please enter repertoire details');
       return;
     }
     if (!formData.location_postcode.trim()) {
-      setError('Please enter a postcode');
+      toast.error('Please enter a postcode');
       return;
     }
 
     setSubmitting(true);
+    // Show a loading toast while we geocode and save!
+    const loadingToast = toast.loading('Publishing your job...');
 
     try {
+      // Get highly accurate coordinates for the map
+      let lat = null;
+      let lng = null;
+      
+      const fullAddressToGeocode = formData.venue_address.trim() 
+        ? `${formData.venue_address.trim()}, ${formData.location_postcode.trim()}`
+        : formData.location_postcode.trim();
+
+      const coordinates = await geocodeLocation(fullAddressToGeocode);
+      if (coordinates) {
+        lat = coordinates.lat;
+        lng = coordinates.lng;
+      }
+
       const { data: job, error: jobError } = await supabase
         .from('job_posts')
         .insert({
@@ -100,6 +117,7 @@ export default function PostJobPage() {
           grade: formData.grade.trim(),
           exam_date: formData.exam_date || null,
           repertoire: formData.repertoire.trim(),
+          venue_address: formData.venue_address.trim() || null,
           location_postcode: formData.location_postcode.trim(),
           required_hours: parseFloat(formData.required_hours) || 1,
           preferred_dates: formData.preferred_dates.trim(),
@@ -107,15 +125,22 @@ export default function PostJobPage() {
           budget_max: formData.budget_max ? parseFloat(formData.budget_max) : null,
           description: formData.description.trim(),
           status: 'open',
+          latitude: lat,
+          longitude: lng,
         })
         .select()
         .single();
 
       if (jobError) throw jobError;
 
+      // 👉 Dismiss the loading toast and show success!
+      toast.dismiss(loadingToast);
+      toast.success('Job posted successfully!');
+
       router.push(`/client/jobs/${job.id}?new=true`);
     } catch (err) {
-      setError(err.message || 'Failed to post job');
+      toast.dismiss(loadingToast);
+      toast.error(err.message || 'Failed to post job');
     } finally {
       setSubmitting(false);
     }
@@ -149,12 +174,7 @@ export default function PostJobPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
+            
             {/* Title */}
             <Input
               label="Job Title *"
@@ -218,11 +238,25 @@ export default function PostJobPage() {
               rows={3}
             />
 
-            {/* Location & Dates */}
+            {/* Location & Timing */}
             <div>
               <h3 className="text-sm font-semibold text-zinc-900 mb-3 uppercase tracking-wide">
                 Location & Timing
               </h3>
+              
+              <div className="mb-4">
+                <Input
+                  label="Full Street Address (Kept Private)"
+                  name="venue_address"
+                  placeholder="e.g. 123 Music Lane, Sydney"
+                  value={formData.venue_address}
+                  onChange={handleChange}
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Only the postcode will be shown publicly. The full address is only revealed to the pianist you hire.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Postcode *"
@@ -239,9 +273,6 @@ export default function PostJobPage() {
                   onChange={handleChange}
                 />
               </div>
-              <p className="text-xs text-zinc-400 mt-1">
-                Full venue address will only be shared after you accept a pianist.
-              </p>
             </div>
 
             {/* Budget */}

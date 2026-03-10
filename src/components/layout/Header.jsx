@@ -1,37 +1,60 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
-import Button from '@/components/ui/Button';
-import RoleSwitcher from '@/components/layout/RoleSwitcher';
-import { Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import Button from "@/components/ui/Button";
+import RoleSwitcher from "@/components/layout/RoleSwitcher";
+import ClientNav from "@/components/layout/ClientNav";
+import PianistNav from "@/components/layout/PianistNav";
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export default function Header() {
   const { user, loading, signOut, isPianist, isClient } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Active states for global links
+  const isSearchActive = pathname?.startsWith("/search");
+  const isPianistRoute = pathname?.startsWith("/pianist");
+  const isClientRoute = pathname?.startsWith("/client");
+  const isJobsActive = pathname?.startsWith("/jobs");
 
   return (
-    <header className="border-b border-zinc-200 bg-white">
+    <header className="border-b border-zinc-200 bg-white sticky top-0 z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <span className="text-xl font-bold text-zinc-900">Tutti</span>
-            <span className="text-xl font-light text-zinc-500 ml-1">Platforms</span>
+            <span className="text-xl font-light text-zinc-500 ml-1">
+              Platforms
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
             <Link
               href="/search"
-              className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
+              className={cn(
+                "transition-colors text-sm",
+                isSearchActive
+                  ? "text-zinc-900 font-semibold"
+                  : "text-zinc-600 hover:text-zinc-900",
+              )}
             >
               Find Pianists
             </Link>
             <Link
               href="/jobs"
-              className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
+              className={cn(
+                "transition-colors text-sm",
+                isJobsActive
+                  ? "text-zinc-900 font-semibold"
+                  : "text-zinc-600 hover:text-zinc-900",
+              )}
             >
               Browse Jobs
             </Link>
@@ -40,54 +63,13 @@ export default function Header() {
               <>
                 {user ? (
                   <div className="flex items-center gap-4">
-                    {/* Role-Based Links */}
-                    {isPianist && (
-                      <>
-                        <Link
-                          href="/pianist/dashboard"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Dashboard
-                        </Link>
-                        <Link
-                          href="/pianist/availability"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Availability
-                        </Link>
-                        <Link
-                          href="/pianist/bookings"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Bookings
-                        </Link>
-                      </>
-                    )}
+                    {/* Render specific navigation arrays seamlessly! */}
+                    {/* Only show Pianist Nav if they are actively in the /pianist routes */}
+                    {isPianistRoute && <PianistNav />}
 
-                    {isClient && (
-                      <>
-                        <Link
-                          href="/client/dashboard"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Dashboard
-                        </Link>
-                        <Link
-                          href="/client/post-job"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Post Job
-                        </Link>
-                        <Link
-                          href="/client/bookings"
-                          className="text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          Bookings
-                        </Link>
-                      </>
-                    )}
+                    {/* Only show Client Nav if they are actively in the /client routes */}
+                    {isClientRoute && <ClientNav />}
 
-                    {/* Role Switcher */}
                     <RoleSwitcher />
 
                     <Button variant="secondary" size="sm" onClick={signOut}>
@@ -97,7 +79,9 @@ export default function Header() {
                 ) : (
                   <div className="flex items-center gap-3">
                     <Link href="/login">
-                      <Button variant="ghost" size="sm">Log In</Button>
+                      <Button variant="ghost" size="sm">
+                        Log In
+                      </Button>
                     </Link>
                     <Link href="/register">
                       <Button size="sm">Sign Up</Button>
@@ -122,14 +106,24 @@ export default function Header() {
           <div className="md:hidden pb-4 space-y-3">
             <Link
               href="/search"
-              className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
+              className={cn(
+                "block py-2 text-sm transition-colors",
+                isSearchActive
+                  ? "text-zinc-900 font-semibold"
+                  : "text-zinc-600 hover:text-zinc-900",
+              )}
               onClick={() => setMobileMenuOpen(false)}
             >
               Find Pianists
             </Link>
             <Link
               href="/jobs"
-              className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
+              className={cn(
+                "block py-2 text-sm transition-colors",
+                isJobsActive
+                  ? "text-zinc-900 font-semibold"
+                  : "text-zinc-600 hover:text-zinc-900",
+              )}
               onClick={() => setMobileMenuOpen(false)}
             >
               Browse Jobs
@@ -139,70 +133,18 @@ export default function Header() {
               <>
                 {user ? (
                   <>
-                    {isPianist && (
-                      <>
-                        <Link
-                          href="/pianist/dashboard"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Pianist Dashboard
-                        </Link>
-                        <Link
-                          href="/pianist/profile/edit"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Pianist Profile
-                        </Link>
-                        <Link
-                          href="/pianist/availability"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Availability
-                        </Link>
-                        <Link
-                          href="/pianist/bookings"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Pianist Bookings
-                        </Link>
-                      </>
+                    {isPianistRoute && (
+                      <PianistNav
+                        isMobile
+                        onLinkClick={() => setMobileMenuOpen(false)}
+                      />
                     )}
 
-                    {isClient && (
-                      <>
-                        <Link
-                          href="/client/dashboard"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Client Dashboard
-                        </Link>
-                        <Link
-                          href="/client/profile/edit"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Client Profile
-                        </Link>
-                        <Link
-                          href="/client/post-job"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Post Job
-                        </Link>
-                        <Link
-                          href="/client/bookings"
-                          className="block text-sm text-zinc-600 hover:text-zinc-900 py-2"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          Client Bookings
-                        </Link>
-                      </>
+                    {isClientRoute && (
+                      <ClientNav
+                        isMobile
+                        onLinkClick={() => setMobileMenuOpen(false)}
+                      />
                     )}
 
                     {/* Mobile Role Switcher */}
@@ -224,12 +166,18 @@ export default function Header() {
                   </>
                 ) : (
                   <div className="space-y-2 pt-2">
-                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Link
+                      href="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
                       <Button variant="secondary" size="sm" className="w-full">
                         Log In
                       </Button>
                     </Link>
-                    <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
+                    <Link
+                      href="/register"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
                       <Button size="sm" className="w-full">
                         Sign Up
                       </Button>

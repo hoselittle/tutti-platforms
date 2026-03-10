@@ -56,3 +56,37 @@ export function getJobStatusVariant(status) {
     default:          return 'default';
   }
 }
+
+/**
+ * Turns a postcode or address into Latitude and Longitude using OpenStreetMap.
+ * @param {string} location - The postcode or address (e.g., "2000" or "Sydney, NSW")
+ * @returns {Promise<{lat: number, lng: number} | null>}
+ */
+export async function geocodeLocation(location) {
+  try {
+    // We add "Australia" to ensure it doesn't accidentally find a postcode in another country!
+    const query = encodeURIComponent(`${location}, Australia`);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`,
+      {
+        headers: {
+          // OpenStreetMap asks developers to provide a user-agent
+          'User-Agent': 'TuttiPlatforms/1.0 (Development)'
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon)
+      };
+    }
+    return null; // No coordinates found
+  } catch (error) {
+    console.error("Geocoding failed:", error);
+    return null;
+  }
+}
