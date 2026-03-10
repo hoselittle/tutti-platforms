@@ -1,16 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { formatCurrency } from '@/lib/utils';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Textarea from '@/components/ui/Textarea';
-import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { ArrowLeft, MapPin, Calendar, Clock, Users, Send } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency, getJobStatusVariant } from "@/lib/utils";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
+import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { ArrowLeft, MapPin, Calendar, Clock, Users, Send } from "lucide-react";
+import Link from "next/link";
+import Skeleton from "@/components/ui/Skeleton";
 
 export default function JobDetailPage() {
   const router = useRouter();
@@ -22,13 +24,16 @@ export default function JobDetailPage() {
   const [existingApplication, setExistingApplication] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ✅ Modal state
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
-    cover_message: '',
-    proposed_rate: '',
-    available_dates: '',
+    cover_message: "",
+    proposed_rate: "",
+    available_dates: "",
   });
 
   const supabase = createClient();
@@ -40,22 +45,22 @@ export default function JobDetailPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      // Load job
       const { data: jobData } = await supabase
-        .from('job_posts')
-        .select('*')
-        .eq('id', jobId)
+        .from("job_posts")
+        .select("*")
+        .eq("id", jobId)
         .single();
 
       setJob(jobData);
 
-      // Load pianist profile
       const { data: profile } = await supabase
-        .from('pianist_profiles')
-        .select('*')
-        .eq('user_id', user.id)
+        .from("pianist_profiles")
+        .select("*")
+        .eq("user_id", user.id)
         .single();
 
       setPianistProfile(profile);
@@ -63,21 +68,20 @@ export default function JobDetailPage() {
       if (profile) {
         setFormData((prev) => ({
           ...prev,
-          proposed_rate: profile.hourly_rate?.toString() || '',
+          proposed_rate: profile.hourly_rate?.toString() || "",
         }));
 
-        // Check if already applied
         const { data: application } = await supabase
-          .from('applications')
-          .select('*')
-          .eq('job_id', jobId)
-          .eq('pianist_id', profile.id)
+          .from("applications")
+          .select("*")
+          .eq("job_id", jobId)
+          .eq("pianist_id", profile.id)
           .single();
 
         setExistingApplication(application);
       }
     } catch (err) {
-      console.error('Error loading data:', err);
+      console.error("Error loading data:", err);
     } finally {
       setLoading(false);
     }
@@ -90,15 +94,15 @@ export default function JobDetailPage() {
 
   const handleApply = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     if (!formData.cover_message.trim()) {
-      setError('Please write a cover message');
+      setError("Please write a cover message");
       return;
     }
     if (!formData.proposed_rate) {
-      setError('Please enter your proposed rate');
+      setError("Please enter your proposed rate");
       return;
     }
 
@@ -109,7 +113,7 @@ export default function JobDetailPage() {
       const proposedTotal = proposedRate * (job.required_hours || 1);
 
       const { data: application, error: applyError } = await supabase
-        .from('applications')
+        .from("applications")
         .insert({
           job_id: jobId,
           pianist_id: pianistProfile.id,
@@ -117,7 +121,7 @@ export default function JobDetailPage() {
           proposed_rate: proposedRate,
           proposed_total: proposedTotal,
           available_dates: formData.available_dates.trim(),
-          status: 'pending',
+          status: "pending",
         })
         .select()
         .single();
@@ -125,40 +129,68 @@ export default function JobDetailPage() {
       if (applyError) throw applyError;
 
       setExistingApplication(application);
-      setSuccess('Application submitted successfully!');
+      setSuccess("Application submitted successfully!");
     } catch (err) {
-      if (err.message?.includes('duplicate')) {
-        setError('You have already applied to this job.');
+      if (err.message?.includes("duplicate")) {
+        setError("You have already applied to this job.");
       } else {
-        setError(err.message || 'Failed to submit application');
+        setError(err.message || "Failed to submit application");
       }
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ✅ No confirm() — modal handles confirmation
   const handleWithdraw = async () => {
-    if (!confirm('Are you sure you want to withdraw your application?')) return;
-
     try {
       const { error: withdrawError } = await supabase
-        .from('applications')
-        .update({ status: 'withdrawn' })
-        .eq('id', existingApplication.id);
+        .from("applications")
+        .update({ status: "withdrawn" })
+        .eq("id", existingApplication.id);
 
       if (withdrawError) throw withdrawError;
 
       setExistingApplication(null);
-      setSuccess('Application withdrawn.');
+      setSuccess("Application withdrawn.");
     } catch (err) {
-      setError(err.message || 'Failed to withdraw');
+      setError(err.message || "Failed to withdraw");
+    } finally {
+      setWithdrawModalOpen(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading...</p>
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <Skeleton className="h-4 w-24" />
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex items-start justify-between">
+            <Skeleton className="h-6 w-64" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+          <div className="flex gap-4">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-5 w-14 rounded-full" />
+            <Skeleton className="h-5 w-14 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-24 w-full rounded-md" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md" />
+          </div>
+          <Skeleton className="h-10 w-full rounded-md" />
+        </div>
       </div>
     );
   }
@@ -173,6 +205,17 @@ export default function JobDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+      {/* ✅ Withdraw Confirm Modal */}
+      <ConfirmModal
+        isOpen={withdrawModalOpen}
+        onClose={() => setWithdrawModalOpen(false)}
+        onConfirm={handleWithdraw}
+        title="Withdraw Application"
+        description="Are you sure you want to withdraw your application? You can re-apply if the job is still open."
+        confirmLabel="Yes, Withdraw"
+        variant="danger"
+      />
+
       <Link
         href="/pianist/jobs"
         className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 mb-6"
@@ -186,9 +229,8 @@ export default function JobDetailPage() {
         <CardContent>
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="text-xl font-bold text-zinc-900">{job.title}</h1>
-            <Badge
-              variant={job.status === 'open' ? 'success' : 'default'}
-            >
+            {/* ✅ Using imported getJobStatusVariant */}
+            <Badge variant={getJobStatusVariant(job.status)}>
               {job.status}
             </Badge>
           </div>
@@ -201,16 +243,17 @@ export default function JobDetailPage() {
             {job.exam_date && (
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                Exam: {new Date(job.exam_date).toLocaleDateString('en-AU')}
+                Exam: {new Date(job.exam_date).toLocaleDateString("en-AU")}
               </span>
             )}
             <span className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              {job.required_hours} hour{job.required_hours !== 1 ? 's' : ''}
+              {job.required_hours} hour{job.required_hours !== 1 ? "s" : ""}
             </span>
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              {job.application_count} pianist{job.application_count !== 1 ? 's' : ''} applied
+              {job.application_count} pianist
+              {job.application_count !== 1 ? "s" : ""} applied
             </span>
           </div>
 
@@ -219,12 +262,12 @@ export default function JobDetailPage() {
             {job.grade && <Badge variant="default">{job.grade}</Badge>}
             {job.budget_min && job.budget_max && (
               <Badge variant="default">
-                {formatCurrency(job.budget_min)} – {formatCurrency(job.budget_max)}/hr
+                {formatCurrency(job.budget_min)} –{" "}
+                {formatCurrency(job.budget_max)}/hr
               </Badge>
             )}
           </div>
 
-          {/* Details */}
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-zinc-900 mb-1">
@@ -257,13 +300,13 @@ export default function JobDetailPage() {
           </div>
 
           <p className="text-xs text-zinc-400 mt-4">
-            Posted {new Date(job.created_at).toLocaleDateString('en-AU')}
+            Posted {new Date(job.created_at).toLocaleDateString("en-AU")}
           </p>
         </CardContent>
       </Card>
 
       {/* Application Section */}
-      {job.status === 'open' && (
+      {job.status === "open" && (
         <>
           {existingApplication ? (
             <Card>
@@ -276,20 +319,22 @@ export default function JobDetailPage() {
                     <span className="text-sm text-zinc-600">Status:</span>
                     <Badge
                       variant={
-                        existingApplication.status === 'accepted'
-                          ? 'success'
-                          : existingApplication.status === 'rejected'
-                          ? 'danger'
-                          : existingApplication.status === 'withdrawn'
-                          ? 'default'
-                          : 'warning'
+                        existingApplication.status === "accepted"
+                          ? "success"
+                          : existingApplication.status === "rejected"
+                            ? "danger"
+                            : existingApplication.status === "withdrawn"
+                              ? "default"
+                              : "warning"
                       }
                     >
                       {existingApplication.status}
                     </Badge>
                   </div>
                   <div>
-                    <span className="text-sm text-zinc-600">Proposed rate: </span>
+                    <span className="text-sm text-zinc-600">
+                      Proposed rate:{" "}
+                    </span>
                     <span className="text-sm font-semibold text-zinc-900">
                       {formatCurrency(existingApplication.proposed_rate)}/hr
                     </span>
@@ -301,11 +346,12 @@ export default function JobDetailPage() {
                     </p>
                   </div>
 
-                  {existingApplication.status === 'pending' && (
+                  {existingApplication.status === "pending" && (
+                    // ✅ Opens modal instead of confirm()
                     <Button
                       variant="danger"
                       size="sm"
-                      onClick={handleWithdraw}
+                      onClick={() => setWithdrawModalOpen(true)}
                     >
                       Withdraw Application
                     </Button>
@@ -366,14 +412,17 @@ export default function JobDetailPage() {
                   {formData.proposed_rate && (
                     <div className="p-3 bg-zinc-50 rounded-lg">
                       <p className="text-sm text-zinc-600">
-                        Estimated total:{' '}
+                        Estimated total:{" "}
                         <span className="font-semibold text-zinc-900">
                           {formatCurrency(
-                            parseFloat(formData.proposed_rate) * (job.required_hours || 1)
+                            parseFloat(formData.proposed_rate) *
+                              (job.required_hours || 1),
                           )}
                         </span>
                         <span className="text-zinc-400">
-                          {' '}({formatCurrency(parseFloat(formData.proposed_rate))}/hr × {job.required_hours || 1} hrs)
+                          {" "}
+                          ({formatCurrency(parseFloat(formData.proposed_rate))}
+                          /hr × {job.required_hours || 1} hrs)
                         </span>
                       </p>
                     </div>

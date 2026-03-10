@@ -1,12 +1,14 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
-import Button from '@/components/ui/Button';
-import Card, { CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { PlusCircle, MapPin, Users } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import Button from "@/components/ui/Button";
+import Card, { CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { getJobStatusVariant } from "@/lib/utils";
+import { PlusCircle, MapPin, Users } from "lucide-react";
+import { JobCardSkeleton } from "@/components/ui/Skeleton";
 
 export default function ClientJobsPage() {
   const [jobs, setJobs] = useState([]);
@@ -20,45 +22,47 @@ export default function ClientJobsPage() {
 
   const loadJobs = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: profile } = await supabase
-        .from('client_profiles')
-        .select('id')
-        .eq('user_id', user.id)
+        .from("client_profiles")
+        .select("id")
+        .eq("user_id", user.id)
         .single();
 
       if (profile) {
         const { data: jobsData } = await supabase
-          .from('job_posts')
-          .select('*')
-          .eq('client_id', profile.id)
-          .order('created_at', { ascending: false });
+          .from("job_posts")
+          .select("*")
+          .eq("client_id", profile.id)
+          .order("created_at", { ascending: false });
 
         setJobs(jobsData || []);
       }
     } catch (err) {
-      console.error('Error loading jobs:', err);
+      console.error("Error loading jobs:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'open': return 'success';
-      case 'assigned': return 'info';
-      case 'completed': return 'default';
-      case 'closed': return 'default';
-      case 'expired': return 'danger';
-      default: return 'default';
-    }
-  };
-
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading...</p>
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="space-y-2">
+            <div className="h-7 w-24 bg-zinc-200 animate-pulse rounded-md" />
+            <div className="h-4 w-64 bg-zinc-200 animate-pulse rounded-md" />
+          </div>
+          <div className="h-9 w-28 bg-zinc-200 animate-pulse rounded-md" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <JobCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -98,7 +102,8 @@ export default function ClientJobsPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
-                          {job.application_count} application{job.application_count !== 1 ? 's' : ''}
+                          {job.application_count} application
+                          {job.application_count !== 1 ? "s" : ""}
                         </span>
                       </div>
                       <div className="flex gap-1.5 mt-2">
@@ -109,17 +114,19 @@ export default function ClientJobsPage() {
                           <Badge variant="default">{job.grade}</Badge>
                         )}
                         <Badge variant="default">
-                          {job.required_hours} hr{job.required_hours !== 1 ? 's' : ''}
+                          {job.required_hours} hr
+                          {job.required_hours !== 1 ? "s" : ""}
                         </Badge>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
-                      <Badge variant={getStatusVariant(job.status)}>
+                      {/* ✅ Using imported getJobStatusVariant */}
+                      <Badge variant={getJobStatusVariant(job.status)}>
                         {job.status}
                       </Badge>
                       <p className="text-xs text-zinc-400 mt-1">
-                        {new Date(job.created_at).toLocaleDateString('en-AU')}
+                        {new Date(job.created_at).toLocaleDateString("en-AU")}
                       </p>
                     </div>
                   </div>

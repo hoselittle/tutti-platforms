@@ -1,18 +1,17 @@
+// src/app/(client)/client/book/[pianistId]/page.js
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, calculateCommission } from '@/lib/utils';
-import { EXAM_TYPES } from '@/lib/constants';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
 import StarRating from '@/components/ui/StarRating';
-import { ArrowLeft, Calendar, Shield, Music } from 'lucide-react';
+import { ArrowLeft, Calendar, Shield, Music, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function BookPianistPage() {
@@ -26,6 +25,9 @@ export default function BookPianistPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // ✅ New state — track if user is trying to book themselves
+  const [isSelfBooking, setIsSelfBooking] = useState(false);
 
   const [formData, setFormData] = useState({
     availability_id: '',
@@ -64,7 +66,15 @@ export default function BookPianistPage() {
         router.push('/search');
         return;
       }
+
       setPianist(pianistData);
+
+      // ✅ Check if the logged-in user owns this pianist profile
+      if (pianistData.user_id === user.id) {
+        setIsSelfBooking(true);
+        setLoading(false);
+        return; // Stop here — no need to load the rest
+      }
 
       // Load client profile
       const { data: clientData } = await supabase
@@ -109,7 +119,6 @@ export default function BookPianistPage() {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (!formData.availability_id) {
       setError('Please select a time slot');
       return;
@@ -132,7 +141,12 @@ export default function BookPianistPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Create booking
+      // ✅ Double-check self-booking on submit (security)
+      if (pianist.user_id === user.id) {
+        setError('You cannot book yourself.');
+        return;
+      }
+
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -159,7 +173,6 @@ export default function BookPianistPage() {
 
       if (bookingError) throw bookingError;
 
-      // Redirect to booking confirmation
       router.push(`/client/bookings/${booking.id}?new=true`);
     } catch (err) {
       setError(err.message || 'Failed to create booking request');
@@ -176,6 +189,43 @@ export default function BookPianistPage() {
     );
   }
 
+  // ✅ Show a friendly message instead of the booking form
+  if (isSelfBooking) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <Card>
+          <CardContent>
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-8 w-8 text-yellow-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-zinc-900 mb-2">
+                You can&apos;t book yourself
+              </h2>
+              <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">
+                This is your own pianist profile. You cannot book yourself
+                as a client. Switch to your pianist account to manage
+                this profile.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link href={`/pianist/${pianistId}`}>
+                  <Button variant="secondary">
+                    View Your Profile
+                  </Button>
+                </Link>
+                <Link href="/search">
+                  <Button>
+                    Find Another Pianist
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!pianist) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
@@ -186,7 +236,6 @@ export default function BookPianistPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Back Link */}
       <Link
         href={`/pianist/${pianistId}`}
         className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 mb-6"
@@ -222,8 +271,8 @@ export default function BookPianistPage() {
         <CardHeader>
           <CardTitle>Booking Details</CardTitle>
           <CardDescription>
-            Fill in your session details. The pianist will review and accept or
-            decline within 24 hours.
+            Fill in your session details. The pianist will review and
+            accept or decline within 24 hours.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -331,7 +380,7 @@ export default function BookPianistPage() {
             <Textarea
               label="Repertoire Details *"
               name="repertoire"
-              placeholder="List the pieces you need accompanied. Include composer, title, and movement if applicable."
+              placeholder="List the pieces you need accompanied."
               value={formData.repertoire}
               onChange={handleChange}
               rows={3}
@@ -353,7 +402,7 @@ export default function BookPianistPage() {
             <Textarea
               label="Additional Notes"
               name="notes"
-              placeholder="Any other information the pianist should know (max 500 characters)"
+              placeholder="Any other information the pianist should know"
               value={formData.notes}
               onChange={handleChange}
               rows={2}
@@ -368,7 +417,9 @@ export default function BookPianistPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-600">
-                    {formatCurrency(pianist.hourly_rate)} × {formData.required_hours || 1} hour{parseFloat(formData.required_hours || 1) !== 1 ? 's' : ''}
+                    {formatCurrency(pianist.hourly_rate)} ×{' '}
+                    {formData.required_hours || 1} hour
+                    {parseFloat(formData.required_hours || 1) !== 1 ? 's' : ''}
                   </span>
                   <span className="text-zinc-900">
                     {formatCurrency(pricing.totalAmount)}
@@ -389,13 +440,10 @@ export default function BookPianistPage() {
               </div>
               <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
                 <Shield className="h-3.5 w-3.5" />
-                <span>
-                  Payment is held securely until the session is completed.
-                </span>
+                <span>Payment is held securely until the session is completed.</span>
               </div>
             </div>
 
-            {/* Submit */}
             <Button
               type="submit"
               className="w-full"

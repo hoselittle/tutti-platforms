@@ -1,35 +1,41 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import Textarea from '@/components/ui/Textarea';
-import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
-import { AMEB_GRADES, SIGHT_READING_LABELS } from '@/lib/constants';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Textarea from "@/components/ui/Textarea";
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/Card";
+import { AMEB_GRADES, SIGHT_READING_LABELS } from "@/lib/constants";
+import { ProfileEditSkeleton } from "@/components/ui/Skeleton";
 
 export default function PianistProfileEditPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isNew = searchParams.get('new') === 'true';
+  const isNew = searchParams.get("new") === "true";
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [formData, setFormData] = useState({
-    name: '',
-    postcode: '',
-    years_experience: '',
+    name: "",
+    postcode: "",
+    years_experience: "",
     ameb_experience: false,
-    ameb_max_grade: '',
+    ameb_max_grade: "",
     hsc_experience: false,
-    sight_reading: '',
-    hourly_rate: '',
-    bio: '',
+    sight_reading: "",
+    hourly_rate: "",
+    bio: "",
   });
 
   const supabase = createClient();
@@ -39,33 +45,35 @@ export default function PianistProfileEditPage() {
     const loadProfile = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
-          router.push('/login');
+          router.push("/login");
           return;
         }
 
         const { data: profile } = await supabase
-          .from('pianist_profiles')
-          .select('*')
-          .eq('user_id', user.id)
+          .from("pianist_profiles")
+          .select("*")
+          .eq("user_id", user.id)
           .single();
 
         if (profile) {
           setFormData({
-            name: profile.name || '',
-            postcode: profile.postcode || '',
-            years_experience: profile.years_experience || '',
+            name: profile.name || "",
+            postcode: profile.postcode || "",
+            years_experience: profile.years_experience || "",
             ameb_experience: profile.ameb_experience || false,
-            ameb_max_grade: profile.ameb_max_grade || '',
+            ameb_max_grade: profile.ameb_max_grade || "",
             hsc_experience: profile.hsc_experience || false,
-            sight_reading: profile.sight_reading || '',
-            hourly_rate: profile.hourly_rate || '',
-            bio: profile.bio || '',
+            sight_reading: profile.sight_reading || "",
+            hourly_rate: profile.hourly_rate || "",
+            bio: profile.bio || "",
           });
         }
       } catch (err) {
-        console.error('Error loading profile:', err);
+        console.error("Error loading profile:", err);
       } finally {
         setLoading(false);
       }
@@ -78,33 +86,35 @@ export default function PianistProfileEditPage() {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     // Validation
     if (!formData.name.trim()) {
-      setError('Name is required');
+      setError("Name is required");
       return;
     }
     if (!formData.postcode.trim()) {
-      setError('Postcode is required');
+      setError("Postcode is required");
       return;
     }
     if (!formData.hourly_rate) {
-      setError('Hourly rate is required');
+      setError("Hourly rate is required");
       return;
     }
 
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const updateData = {
         name: formData.name.trim(),
@@ -125,30 +135,26 @@ export default function PianistProfileEditPage() {
       };
 
       const { error: updateError } = await supabase
-        .from('pianist_profiles')
+        .from("pianist_profiles")
         .update(updateData)
-        .eq('user_id', user.id);
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
 
       if (isNew) {
-        router.push('/pianist/dashboard');
+        router.push("/pianist/dashboard");
       } else {
-        setSuccess('Profile updated successfully');
+        setSuccess("Profile updated successfully");
       }
     } catch (err) {
-      setError(err.message || 'Failed to save profile');
+      setError(err.message || "Failed to save profile");
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading profile...</p>
-      </div>
-    );
+    return <ProfileEditSkeleton />;
   }
 
   return (
@@ -166,9 +172,12 @@ export default function PianistProfileEditPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{isNew ? 'Set Up Your Profile' : 'Edit Profile'}</CardTitle>
+          <CardTitle>
+            {isNew ? "Set Up Your Profile" : "Edit Profile"}
+          </CardTitle>
           <CardDescription>
-            This information will be visible to clients searching for accompanists.
+            This information will be visible to clients searching for
+            accompanists.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -235,7 +244,7 @@ export default function PianistProfileEditPage() {
                     ([value, label]) => ({
                       value,
                       label: `${value} — ${label}`,
-                    })
+                    }),
                   )}
                 />
               </div>
@@ -307,8 +316,8 @@ export default function PianistProfileEditPage() {
                   required
                 />
                 <p className="text-xs text-zinc-400 mt-1">
-                  This is the rate clients will see. You will always
-                  receive your full listed rate.
+                  This is the rate clients will see. You will always receive
+                  your full listed rate.
                 </p>
               </div>
             </div>
@@ -343,7 +352,7 @@ export default function PianistProfileEditPage() {
                 </Button>
               )}
               <Button type="submit" loading={saving}>
-                {isNew ? 'Complete Profile' : 'Save Changes'}
+                {isNew ? "Complete Profile" : "Save Changes"}
               </Button>
             </div>
           </form>

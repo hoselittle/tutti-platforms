@@ -1,16 +1,28 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import Button from '@/components/ui/Button';
-import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import StarRating from '@/components/ui/StarRating';
-import Textarea from '@/components/ui/Textarea';
-import { ArrowLeft, CheckCircle, XCircle, User, MapPin, Calendar, Clock, DollarSign } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency, formatDate, getStatusVariant } from "@/lib/utils";
+import Button from "@/components/ui/Button";
+import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import StarRating from "@/components/ui/StarRating";
+import Textarea from "@/components/ui/Textarea";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import {
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  User,
+  MapPin,
+  Calendar,
+  Clock,
+  DollarSign,
+  AlertTriangle,
+} from "lucide-react";
+import Link from "next/link";
+import { BookingDetailSkeleton } from "@/components/ui/Skeleton";
 
 export default function PianistBookingDetailPage() {
   const params = useParams();
@@ -19,15 +31,22 @@ export default function PianistBookingDetailPage() {
   const [booking, setBooking] = useState(null);
   const [client, setClient] = useState(null);
   const [existingReview, setExistingReview] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ✅ Modal state
+  const [modal, setModal] = useState({
+    isOpen: false,
+    type: null, // 'accept' | 'decline'
+  });
 
   // Review form
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
+  const [reviewComment, setReviewComment] = useState("");
 
   const supabase = createClient();
 
@@ -38,119 +57,127 @@ export default function PianistBookingDetailPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      // Load booking
+      // ✅ Save current user ID for self-review check
+      setCurrentUserId(user.id);
+
       const { data: bookingData } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('id', bookingId)
+        .from("bookings")
+        .select("*")
+        .eq("id", bookingId)
         .single();
 
       setBooking(bookingData);
 
       if (bookingData) {
-        // Load client profile
         const { data: clientData } = await supabase
-          .from('client_profiles')
-          .select('*')
-          .eq('id', bookingData.client_id)
+          .from("client_profiles")
+          .select("*")
+          .eq("id", bookingData.client_id)
           .single();
 
         setClient(clientData);
 
-        // Check for existing review
         const { data: review } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('booking_id', bookingId)
-          .eq('reviewer_id', user.id)
+          .from("reviews")
+          .select("*")
+          .eq("booking_id", bookingId)
+          .eq("reviewer_id", user.id)
           .single();
 
         setExistingReview(review);
       }
     } catch (err) {
-      console.error('Error loading booking:', err);
+      console.error("Error loading booking:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAccept = async () => {
-    if (!confirm('Accept this booking request?')) return;
+  const openModal = (type) => setModal({ isOpen: true, type });
+  const closeModal = () => setModal({ isOpen: false, type: null });
 
+  const handleModalConfirm = async () => {
+    if (modal.type === "accept") await handleAccept();
+    else if (modal.type === "decline") await handleDecline();
+  };
+
+  const handleAccept = async () => {
     setActionLoading(true);
-    setError('');
+    setError("");
 
     try {
-      // Update booking status
       const { error: updateError } = await supabase
-        .from('bookings')
+        .from("bookings")
         .update({
-          status: 'accepted',
+          status: "accepted",
           accepted_at: new Date().toISOString(),
         })
-        .eq('id', bookingId);
+        .eq("id", bookingId);
 
       if (updateError) throw updateError;
 
-      // Mark availability slot as booked
       if (booking.availability_id) {
         await supabase
-          .from('availability')
+          .from("availability")
           .update({ is_booked: true })
-          .eq('id', booking.availability_id);
+          .eq("id", booking.availability_id);
       }
 
-      setBooking((prev) => ({ ...prev, status: 'accepted' }));
-      setSuccess('Booking accepted! The client will be notified.');
+      setBooking((prev) => ({ ...prev, status: "accepted" }));
+      setSuccess("Booking accepted! The client will be notified.");
     } catch (err) {
-      setError(err.message || 'Failed to accept booking');
+      setError(err.message || "Failed to accept booking");
     } finally {
       setActionLoading(false);
+      closeModal();
     }
   };
 
   const handleDecline = async () => {
-    if (!confirm('Decline this booking request?')) return;
-
     setActionLoading(true);
-    setError('');
+    setError("");
 
     try {
       const { error: updateError } = await supabase
-        .from('bookings')
+        .from("bookings")
         .update({
-          status: 'cancelled',
+          status: "cancelled",
           cancelled_at: new Date().toISOString(),
         })
-        .eq('id', bookingId);
+        .eq("id", bookingId);
 
       if (updateError) throw updateError;
 
-      setBooking((prev) => ({ ...prev, status: 'cancelled' }));
-      setSuccess('Booking declined.');
+      setBooking((prev) => ({ ...prev, status: "cancelled" }));
+      setSuccess("Booking declined.");
     } catch (err) {
-      setError(err.message || 'Failed to decline booking');
+      setError(err.message || "Failed to decline booking");
     } finally {
       setActionLoading(false);
+      closeModal();
     }
   };
 
   const handleSubmitReview = async () => {
     if (reviewRating === 0) {
-      setError('Please select a rating');
+      setError("Please select a rating");
       return;
     }
 
     setActionLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: review, error: reviewError } = await supabase
-        .from('reviews')
+        .from("reviews")
         .insert({
           booking_id: bookingId,
           reviewer_id: user.id,
@@ -165,33 +192,33 @@ export default function PianistBookingDetailPage() {
 
       setExistingReview(review);
       setShowReviewForm(false);
-      setSuccess('Review submitted. Thank you!');
+      setSuccess("Review submitted. Thank you!");
     } catch (err) {
-      setError(err.message || 'Failed to submit review');
+      setError(err.message || "Failed to submit review");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'accepted': return 'info';
-      case 'paid': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'danger';
-      case 'disputed': return 'danger';
-      case 'refunded': return 'default';
-      default: return 'default';
-    }
+  const modalConfig = {
+    accept: {
+      title: "Accept Booking",
+      description:
+        "Accept this booking request? The client will be notified and the session will be confirmed.",
+      confirmLabel: "Yes, Accept",
+      variant: "success",
+    },
+    decline: {
+      title: "Decline Booking",
+      description:
+        "Are you sure you want to decline this booking request? This action cannot be undone.",
+      confirmLabel: "Yes, Decline",
+      variant: "danger",
+    },
   };
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading...</p>
-      </div>
-    );
+    return <BookingDetailSkeleton />;
   }
 
   if (!booking) {
@@ -202,8 +229,24 @@ export default function PianistBookingDetailPage() {
     );
   }
 
+  const activeModal = modal.type ? modalConfig[modal.type] : null;
+
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+      {/* ✅ Confirm Modal */}
+      {activeModal && (
+        <ConfirmModal
+          isOpen={modal.isOpen}
+          onClose={closeModal}
+          onConfirm={handleModalConfirm}
+          title={activeModal.title}
+          description={activeModal.description}
+          confirmLabel={activeModal.confirmLabel}
+          variant={activeModal.variant}
+          loading={actionLoading}
+        />
+      )}
+
       <Link
         href="/pianist/bookings"
         className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 mb-6"
@@ -228,33 +271,35 @@ export default function PianistBookingDetailPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-zinc-900">Booking Details</h1>
+            {/* ✅ Using imported getStatusVariant */}
             <Badge variant={getStatusVariant(booking.status)}>
               {booking.status}
             </Badge>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            {booking.source === 'job_post' ? 'Via job post' : 'Direct booking'}
-            {' · '}ID: {booking.id.slice(0, 8)}
+            {booking.source === "job_post" ? "Via job post" : "Direct booking"}
+            {" · "}ID: {booking.id.slice(0, 8)}
           </p>
         </CardContent>
       </Card>
 
-      {/* Pending Action — Accept/Decline */}
-      {booking.status === 'pending' && (
+      {/* ✅ Pending Action — opens modal instead of confirm() */}
+      {booking.status === "pending" && (
         <Card className="mb-6 border-yellow-200 bg-yellow-50">
           <CardContent>
             <h2 className="text-base font-semibold text-yellow-900 mb-2">
               Action Required
             </h2>
             <p className="text-sm text-yellow-800 mb-4">
-              A client has requested to book you. Please accept or decline within 24 hours.
+              A client has requested to book you. Please accept or decline
+              within 24 hours.
             </p>
             <div className="flex gap-3">
-              <Button onClick={handleAccept} loading={actionLoading}>
+              <Button onClick={() => openModal("accept")}>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Accept Booking
               </Button>
-              <Button variant="danger" onClick={handleDecline} loading={actionLoading}>
+              <Button variant="danger" onClick={() => openModal("decline")}>
                 <XCircle className="h-4 w-4 mr-2" />
                 Decline
               </Button>
@@ -299,7 +344,9 @@ export default function PianistBookingDetailPage() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2 text-zinc-600">
                 <Calendar className="h-4 w-4" />
-                <span>{booking.exam_type?.toUpperCase()} · {booking.grade}</span>
+                <span>
+                  {booking.exam_type?.toUpperCase()} · {booking.grade}
+                </span>
               </div>
               {booking.exam_date && (
                 <div className="flex items-center gap-2 text-zinc-600">
@@ -309,16 +356,19 @@ export default function PianistBookingDetailPage() {
               )}
               <div className="flex items-center gap-2 text-zinc-600">
                 <Clock className="h-4 w-4" />
-                <span>{booking.required_hours} hour{booking.required_hours !== 1 ? 's' : ''}</span>
+                <span>
+                  {booking.required_hours} hour
+                  {booking.required_hours !== 1 ? "s" : ""}
+                </span>
               </div>
-              {/* Only show venue after accepting */}
-              {['accepted', 'paid', 'completed'].includes(booking.status) && booking.venue_address && (
-                <div className="flex items-center gap-2 text-zinc-600">
-                  <MapPin className="h-4 w-4" />
-                  <span>{booking.venue_address}</span>
-                </div>
-              )}
-              {booking.status === 'pending' && (
+              {["accepted", "paid", "completed"].includes(booking.status) &&
+                booking.venue_address && (
+                  <div className="flex items-center gap-2 text-zinc-600">
+                    <MapPin className="h-4 w-4" />
+                    <span>{booking.venue_address}</span>
+                  </div>
+                )}
+              {booking.status === "pending" && (
                 <p className="text-xs text-zinc-400 italic">
                   Venue address will be revealed after you accept.
                 </p>
@@ -365,7 +415,9 @@ export default function PianistBookingDetailPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600">
-                {formatCurrency(booking.hourly_rate)} × {booking.required_hours} hr{booking.required_hours !== 1 ? 's' : ''}
+                {formatCurrency(booking.hourly_rate)} × {booking.required_hours}{" "}
+                hr
+                {booking.required_hours !== 1 ? "s" : ""}
               </span>
               <span className="text-zinc-900">
                 {formatCurrency(booking.total_amount)}
@@ -382,19 +434,28 @@ export default function PianistBookingDetailPage() {
             </div>
           </div>
           <p className="text-xs text-zinc-400 mt-2">
-            The client pays an additional 10% service fee. Your full rate is always protected.
+            The client pays an additional 10% service fee. Your full rate is
+            always protected.
           </p>
         </CardContent>
       </Card>
 
       {/* Review Section */}
-      {booking.status === 'completed' && (
+      {booking.status === "completed" && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Review</CardTitle>
           </CardHeader>
           <CardContent>
-            {existingReview ? (
+            {/* ✅ Self-review check */}
+            {client?.user_id === currentUserId ? (
+              <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-zinc-400" />
+                <p className="text-sm text-zinc-500">
+                  You cannot review yourself.
+                </p>
+              </div>
+            ) : existingReview ? (
               <div className="p-4 bg-zinc-50 rounded-lg">
                 <h3 className="text-sm font-semibold text-zinc-900 mb-2">
                   Your Review

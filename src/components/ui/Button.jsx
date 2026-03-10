@@ -1,4 +1,6 @@
+// src/components/ui/Button.jsx
 import { cn } from '@/lib/utils';
+import { forwardRef } from 'react';
 
 const variants = {
   primary: 'bg-zinc-900 text-white hover:bg-zinc-800',
@@ -13,7 +15,8 @@ const sizes = {
   lg: 'px-6 py-3 text-base',
 };
 
-export default function Button({
+// ✅ Wrap with forwardRef to support ref prop
+const Button = forwardRef(({
   children,
   variant = 'primary',
   size = 'md',
@@ -21,9 +24,10 @@ export default function Button({
   disabled,
   loading,
   ...props
-}) {
+}, ref) => {
   return (
     <button
+      ref={ref}
       className={cn(
         'inline-flex items-center justify-center rounded-md font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500',
@@ -60,4 +64,7 @@ export default function Button({
       {children}
     </button>
   );
-}
+});
+
+Button.displayName = 'Button';
+export default Button;

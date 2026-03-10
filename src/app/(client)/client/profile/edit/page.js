@@ -1,29 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
-import { CLIENT_TYPES } from '@/lib/constants';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/Card";
+import { CLIENT_TYPES } from "@/lib/constants";
+import { ProfileEditSkeleton } from "@/components/ui/Skeleton";
 
 export default function ClientProfileEditPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isNew = searchParams.get('new') === 'true';
+  const isNew = searchParams.get("new") === "true";
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    location: '',
-    role_type: '',
+    name: "",
+    email: "",
+    location: "",
+    role_type: "",
   });
 
   const supabase = createClient();
@@ -32,33 +38,35 @@ export default function ClientProfileEditPage() {
     const loadProfile = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
-          router.push('/login');
+          router.push("/login");
           return;
         }
 
         const { data: profile } = await supabase
-          .from('client_profiles')
-          .select('*')
-          .eq('user_id', user.id)
+          .from("client_profiles")
+          .select("*")
+          .eq("user_id", user.id)
           .single();
 
         if (profile) {
           setFormData({
-            name: profile.name || '',
-            email: profile.email || user.email || '',
-            location: profile.location || '',
-            role_type: profile.role_type || '',
+            name: profile.name || "",
+            email: profile.email || user.email || "",
+            location: profile.location || "",
+            role_type: profile.role_type || "",
           });
         } else {
           setFormData((prev) => ({
             ...prev,
-            email: user.email || '',
+            email: user.email || "",
           }));
         }
       } catch (err) {
-        console.error('Error loading profile:', err);
+        console.error("Error loading profile:", err);
       } finally {
         setLoading(false);
       }
@@ -77,18 +85,20 @@ export default function ClientProfileEditPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     if (!formData.name.trim()) {
-      setError('Name is required');
+      setError("Name is required");
       return;
     }
 
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const updateData = {
         name: formData.name.trim(),
@@ -98,30 +108,26 @@ export default function ClientProfileEditPage() {
       };
 
       const { error: updateError } = await supabase
-        .from('client_profiles')
+        .from("client_profiles")
         .update(updateData)
-        .eq('user_id', user.id);
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
 
       if (isNew) {
-        router.push('/client/dashboard');
+        router.push("/client/dashboard");
       } else {
-        setSuccess('Profile updated successfully');
+        setSuccess("Profile updated successfully");
       }
     } catch (err) {
-      setError(err.message || 'Failed to save profile');
+      setError(err.message || "Failed to save profile");
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading profile...</p>
-      </div>
-    );
+    return <ProfileEditSkeleton />;
   }
 
   return (
@@ -139,9 +145,12 @@ export default function ClientProfileEditPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{isNew ? 'Set Up Your Profile' : 'Edit Profile'}</CardTitle>
+          <CardTitle>
+            {isNew ? "Set Up Your Profile" : "Edit Profile"}
+          </CardTitle>
           <CardDescription>
-            Tell us a bit about yourself so pianists know who they&apos;re working with.
+            Tell us a bit about yourself so pianists know who they&apos;re
+            working with.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -185,9 +194,9 @@ export default function ClientProfileEditPage() {
                 onChange={handleChange}
                 placeholder="Select your role"
                 options={[
-                  { value: CLIENT_TYPES.STUDENT, label: 'Student' },
-                  { value: CLIENT_TYPES.PARENT, label: 'Parent' },
-                  { value: CLIENT_TYPES.TEACHER, label: 'Teacher' },
+                  { value: CLIENT_TYPES.STUDENT, label: "Student" },
+                  { value: CLIENT_TYPES.PARENT, label: "Parent" },
+                  { value: CLIENT_TYPES.TEACHER, label: "Teacher" },
                 ]}
               />
               <Input
@@ -210,7 +219,7 @@ export default function ClientProfileEditPage() {
                 </Button>
               )}
               <Button type="submit" loading={saving}>
-                {isNew ? 'Complete Profile' : 'Save Changes'}
+                {isNew ? "Complete Profile" : "Save Changes"}
               </Button>
             </div>
           </form>

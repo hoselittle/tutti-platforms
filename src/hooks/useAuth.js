@@ -1,9 +1,14 @@
+// src/hooks/useAuth.js
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ACTIVE_ROLE_KEY } from '@/lib/constants';
+
+// ✅ FIX #1 — Create client ONCE outside the hook
+// This means all components using useAuth share the same instance
+const supabase = createClient();
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -11,13 +16,18 @@ export function useAuth() {
   const [activeRole, setActiveRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
 
-  const loadUserProfile = async (userId) => {
+  // ✅ FIX #2 — Track if we've already loaded to prevent double fetch
+  const initialized = useRef(false);
+
+  // ✅ Wrap in useCallback so it can be safely reused
+  const loadUserProfile = useCallback(async (userId) => {
     try {
       const { data: profiles, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select(
+          'user_id, role, active_role, is_pianist, is_client'  // ✅ only select what we need
+        )
         .eq('user_id', userId);
 
       if (error) {
@@ -25,15 +35,14 @@ export function useAuth() {
         return null;
       }
 
-      // Return first profile (handles edge case of duplicates)
       return profiles && profiles.length > 0 ? profiles[0] : null;
     } catch (err) {
       console.error('Error in loadUserProfile:', err);
       return null;
     }
-  };
+  }, []);
 
-  const determineActiveRole = (profile) => {
+  const determineActiveRole = useCallback((profile) => {
     if (!profile) return null;
 
     // Check localStorage for saved preference
@@ -52,50 +61,46 @@ export function useAuth() {
     if (profile.is_client) return 'client';
 
     return null;
-  };
-
-  useEffect(() => {
-    const getUser = async () => {
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        setUser(authUser);
-
-        if (authUser) {
-          const profile = await loadUserProfile(authUser.id);
-          setUserProfile(profile);
-          setActiveRole(determineActiveRole(profile));
-        }
-      } catch (error) {
-        console.error('Auth error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-
-        if (currentUser) {
-          const profile = await loadUserProfile(currentUser.id);
-          setUserProfile(profile);
-          setActiveRole(determineActiveRole(profile));
-        } else {
-          setUserProfile(null);
-          setActiveRole(null);
-        }
-
-        setLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
-  const switchRole = async (newRole) => {
+  // ✅ Shared handler for when we have a user session
+  const handleUserSession = useCallback(async (authUser) => {
+    if (!authUser) {
+      setUser(null);
+      setUserProfile(null);
+      setActiveRole(null);
+      setLoading(false);
+      return;
+    }
+
+    setUser(authUser);
+    const profile = await loadUserProfile(authUser.id);
+    setUserProfile(profile);
+    setActiveRole(determineActiveRole(profile));
+    setLoading(false);
+  }, [loadUserProfile, determineActiveRole]);
+
+  useEffect(() => {
+    // ✅ FIX #2 — Remove manual getUser() call
+    // onAuthStateChange fires INITIAL_SESSION immediately on mount
+    // which covers the initial load — no need to call getUser() separately
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // ✅ Only process once on initial load to avoid double fetch
+      if (event === 'INITIAL_SESSION') {
+        if (initialized.current) return;
+        initialized.current = true;
+      }
+
+      await handleUserSession(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [handleUserSession]);
+
+  const switchRole = useCallback(async (newRole) => {
     if (!userProfile) return;
 
     // Validate they have this role
@@ -106,7 +111,7 @@ export function useAuth() {
     localStorage.setItem(ACTIVE_ROLE_KEY, newRole);
     setActiveRole(newRole);
 
-    // Save to database
+    // Save to database in background
     await supabase
       .from('user_profiles')
       .update({ active_role: newRole })
@@ -118,9 +123,9 @@ export function useAuth() {
     } else {
       router.push('/client/dashboard');
     }
-  };
+  }, [userProfile, user, router]);
 
-  const activateRole = async (newRole) => {
+  const activateRole = useCallback(async (newRole) => {
     if (!user || !userProfile) return false;
 
     try {
@@ -146,7 +151,6 @@ export function useAuth() {
 
       // Create role-specific profile if it doesn't exist
       if (newRole === 'pianist') {
-        // Check if pianist profile already exists
         const { data: existing } = await supabase
           .from('pianist_profiles')
           .select('id')
@@ -167,7 +171,6 @@ export function useAuth() {
           }
         }
       } else {
-        // Check if client profile already exists
         const { data: existing } = await supabase
           .from('client_profiles')
           .select('id')
@@ -189,11 +192,8 @@ export function useAuth() {
         }
       }
 
-      // Update local state
-      const updatedProfile = {
-        ...userProfile,
-        ...updates,
-      };
+      // ✅ Update local state immediately — no need to re-fetch
+      const updatedProfile = { ...userProfile, ...updates };
       setUserProfile(updatedProfile);
       setActiveRole(newRole);
       localStorage.setItem(ACTIVE_ROLE_KEY, newRole);
@@ -203,19 +203,18 @@ export function useAuth() {
       console.error('Error in activateRole:', err);
       return false;
     }
-  };
+  }, [user, userProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(ACTIVE_ROLE_KEY);
     }
     await supabase.auth.signOut();
-    setUser(null);
-    setUserProfile(null);
-    setActiveRole(null);
+    // ✅ onAuthStateChange will handle clearing state
+    // No need to manually setUser(null) etc.
     router.push('/');
     router.refresh();
-  };
+  }, [router]);
 
   return {
     user,

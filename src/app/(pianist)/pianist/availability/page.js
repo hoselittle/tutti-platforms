@@ -1,26 +1,32 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { Plus, Trash2, Calendar } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { Plus, Trash2, Calendar } from "lucide-react";
+import Skeleton from "@/components/ui/Skeleton";
 
 export default function AvailabilityPage() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [pianistId, setPianistId] = useState(null);
 
   // New slot form
   const [newSlot, setNewSlot] = useState({
-    date: '',
-    start_time: '',
-    end_time: '',
+    date: "",
+    start_time: "",
+    end_time: "",
   });
 
   const supabase = createClient();
@@ -32,55 +38,57 @@ export default function AvailabilityPage() {
   const loadAvailability = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       // Get pianist profile ID
       const { data: profile } = await supabase
-        .from('pianist_profiles')
-        .select('id')
-        .eq('user_id', user.id)
+        .from("pianist_profiles")
+        .select("id")
+        .eq("user_id", user.id)
         .single();
 
       if (profile) {
         setPianistId(profile.id);
 
         // Get future availability
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
         const { data: availability } = await supabase
-          .from('availability')
-          .select('*')
-          .eq('pianist_id', profile.id)
-          .gte('date', today)
-          .order('date', { ascending: true })
-          .order('start_time', { ascending: true });
+          .from("availability")
+          .select("*")
+          .eq("pianist_id", profile.id)
+          .gte("date", today)
+          .order("date", { ascending: true })
+          .order("start_time", { ascending: true });
 
         setSlots(availability || []);
       }
     } catch (err) {
-      console.error('Error loading availability:', err);
+      console.error("Error loading availability:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddSlot = async () => {
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     // Validation
     if (!newSlot.date || !newSlot.start_time || !newSlot.end_time) {
-      setError('Please fill in all fields');
+      setError("Please fill in all fields");
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     if (newSlot.date < today) {
-      setError('Cannot add availability in the past');
+      setError("Cannot add availability in the past");
       return;
     }
 
     if (newSlot.start_time >= newSlot.end_time) {
-      setError('End time must be after start time');
+      setError("End time must be after start time");
       return;
     }
 
@@ -88,7 +96,7 @@ export default function AvailabilityPage() {
 
     try {
       const { data, error: insertError } = await supabase
-        .from('availability')
+        .from("availability")
         .insert({
           pianist_id: pianistId,
           date: newSlot.date,
@@ -100,15 +108,18 @@ export default function AvailabilityPage() {
 
       if (insertError) throw insertError;
 
-      setSlots((prev) => [...prev, data].sort((a, b) => {
-        if (a.date === b.date) return a.start_time.localeCompare(b.start_time);
-        return a.date.localeCompare(b.date);
-      }));
+      setSlots((prev) =>
+        [...prev, data].sort((a, b) => {
+          if (a.date === b.date)
+            return a.start_time.localeCompare(b.start_time);
+          return a.date.localeCompare(b.date);
+        }),
+      );
 
-      setNewSlot({ date: '', start_time: '', end_time: '' });
-      setSuccess('Availability slot added');
+      setNewSlot({ date: "", start_time: "", end_time: "" });
+      setSuccess("Availability slot added");
     } catch (err) {
-      setError(err.message || 'Failed to add slot');
+      setError(err.message || "Failed to add slot");
     } finally {
       setSaving(false);
     }
@@ -117,15 +128,15 @@ export default function AvailabilityPage() {
   const handleDeleteSlot = async (slotId) => {
     try {
       const { error: deleteError } = await supabase
-        .from('availability')
+        .from("availability")
         .delete()
-        .eq('id', slotId);
+        .eq("id", slotId);
 
       if (deleteError) throw deleteError;
 
       setSlots((prev) => prev.filter((s) => s.id !== slotId));
     } catch (err) {
-      setError(err.message || 'Failed to delete slot');
+      setError(err.message || "Failed to delete slot");
     }
   };
 
@@ -140,8 +151,44 @@ export default function AvailabilityPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading availability...</p>
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-80" />
+        </div>
+
+        {/* Add slot card */}
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+          <Skeleton className="h-5 w-32" />
+          <div className="grid grid-cols-4 gap-4">
+            <Skeleton className="h-10 rounded-md" />
+            <Skeleton className="h-10 rounded-md" />
+            <Skeleton className="h-10 rounded-md" />
+            <Skeleton className="h-10 rounded-md" />
+          </div>
+        </div>
+
+        {/* Existing slots card */}
+        <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm space-y-4">
+          <Skeleton className="h-5 w-40" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-36" />
+              {Array.from({ length: 2 }).map((_, j) => (
+                <div
+                  key={j}
+                  className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-4 rounded" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -149,10 +196,12 @@ export default function AvailabilityPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Manage Availability</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">
+          Manage Availability
+        </h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Set when you&apos;re available for accompaniment sessions.
-          Clients will see these time slots on your profile.
+          Set when you&apos;re available for accompaniment sessions. Clients
+          will see these time slots on your profile.
         </p>
       </div>
 
@@ -184,7 +233,7 @@ export default function AvailabilityPage() {
               onChange={(e) =>
                 setNewSlot((prev) => ({ ...prev, date: e.target.value }))
               }
-              min={new Date().toISOString().split('T')[0]}
+              min={new Date().toISOString().split("T")[0]}
             />
             <Input
               label="Start Time"
@@ -218,7 +267,7 @@ export default function AvailabilityPage() {
             Your Availability
           </CardTitle>
           <CardDescription>
-            {slots.length} upcoming slot{slots.length !== 1 ? 's' : ''}
+            {slots.length} upcoming slot{slots.length !== 1 ? "s" : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -227,11 +276,11 @@ export default function AvailabilityPage() {
               {Object.entries(groupedSlots).map(([date, dateSlots]) => (
                 <div key={date}>
                   <h3 className="text-sm font-semibold text-zinc-900 mb-2">
-                    {new Date(date + 'T00:00:00').toLocaleDateString('en-AU', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
+                    {new Date(date + "T00:00:00").toLocaleDateString("en-AU", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
                     })}
                   </h3>
                   <div className="space-y-2">
@@ -242,7 +291,8 @@ export default function AvailabilityPage() {
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium text-zinc-900">
-                            {slot.start_time.slice(0, 5)} – {slot.end_time.slice(0, 5)}
+                            {slot.start_time.slice(0, 5)} –{" "}
+                            {slot.end_time.slice(0, 5)}
                           </span>
                           {slot.is_booked ? (
                             <Badge variant="warning">Booked</Badge>
@@ -271,7 +321,8 @@ export default function AvailabilityPage() {
                 No availability slots set yet.
               </p>
               <p className="text-xs text-zinc-400 mt-1">
-                Add time slots above to let clients know when you&apos;re available.
+                Add time slots above to let clients know when you&apos;re
+                available.
               </p>
             </div>
           )}

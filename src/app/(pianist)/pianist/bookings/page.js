@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
-import Card, { CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { formatCurrency } from '@/lib/utils';
-import { Calendar, User } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import Card, { CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { formatCurrency, getStatusVariant } from "@/lib/utils";
+import { Calendar, User } from "lucide-react";
+import { BookingCardSkeleton } from "@/components/ui/Skeleton";
 
 export default function PianistBookingsPage() {
   const [bookings, setBookings] = useState([]);
@@ -20,53 +21,52 @@ export default function PianistBookingsPage() {
 
   const loadBookings = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: profile } = await supabase
-        .from('pianist_profiles')
-        .select('id')
-        .eq('user_id', user.id)
+        .from("pianist_profiles")
+        .select("id")
+        .eq("user_id", user.id)
         .single();
 
       if (profile) {
         const { data: bookingsData } = await supabase
-          .from('bookings')
-          .select(`
+          .from("bookings")
+          .select(
+            `
             *,
             client_profiles:client_id (
               id,
               name
             )
-          `)
-          .eq('pianist_id', profile.id)
-          .order('requested_at', { ascending: false });
+          `,
+          )
+          .eq("pianist_id", profile.id)
+          .order("requested_at", { ascending: false });
 
         setBookings(bookingsData || []);
       }
     } catch (err) {
-      console.error('Error loading bookings:', err);
+      console.error("Error loading bookings:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'accepted': return 'info';
-      case 'paid': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'danger';
-      case 'disputed': return 'danger';
-      case 'refunded': return 'default';
-      default: return 'default';
-    }
-  };
-
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading...</p>
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8 space-y-2">
+          <div className="h-7 w-36 bg-zinc-200 animate-pulse rounded-md" />
+          <div className="h-4 w-64 bg-zinc-200 animate-pulse rounded-md" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <BookingCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default function PianistBookingsPage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-zinc-900">
-                          {booking.client_profiles?.name || 'Client'}
+                          {booking.client_profiles?.name || "Client"}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-zinc-500 mt-0.5">
                           <span>{booking.exam_type?.toUpperCase()}</span>
@@ -105,17 +105,21 @@ export default function PianistBookingsPage() {
                           )}
                           <span className="text-zinc-300">·</span>
                           <span>
-                            {booking.required_hours} hr{booking.required_hours !== 1 ? 's' : ''}
+                            {booking.required_hours} hr
+                            {booking.required_hours !== 1 ? "s" : ""}
                           </span>
                           <span className="text-zinc-300">·</span>
                           <span>
-                            {booking.source === 'job_post' ? 'Via job' : 'Direct'}
+                            {booking.source === "job_post"
+                              ? "Via job"
+                              : "Direct"}
                           </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
+                      {/* ✅ Using imported getStatusVariant */}
                       <Badge variant={getStatusVariant(booking.status)}>
                         {booking.status}
                       </Badge>
@@ -123,7 +127,9 @@ export default function PianistBookingsPage() {
                         {formatCurrency(booking.total_amount)}
                       </p>
                       <p className="text-xs text-zinc-400">
-                        {new Date(booking.requested_at).toLocaleDateString('en-AU')}
+                        {new Date(booking.requested_at).toLocaleDateString(
+                          "en-AU",
+                        )}
                       </p>
                     </div>
                   </div>

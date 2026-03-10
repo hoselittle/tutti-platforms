@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
-import Card, { CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import { formatCurrency } from '@/lib/utils';
-import { MapPin, Calendar, Clock, Users } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import Card, { CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import { formatCurrency } from "@/lib/utils";
+import { MapPin, Calendar, Clock, Users } from "lucide-react";
+import { JobCardSkeleton } from "@/components/ui/Skeleton";
 
 export default function PublicJobsPage() {
   const [jobs, setJobs] = useState([]);
@@ -18,14 +19,14 @@ export default function PublicJobsPage() {
     const loadJobs = async () => {
       try {
         const { data } = await supabase
-          .from('job_posts')
-          .select('*')
-          .eq('status', 'open')
-          .order('created_at', { ascending: false });
+          .from("job_posts")
+          .select("*")
+          .eq("status", "open")
+          .order("created_at", { ascending: false });
 
         setJobs(data || []);
       } catch (err) {
-        console.error('Error loading jobs:', err);
+        console.error("Error loading jobs:", err);
       } finally {
         setLoading(false);
       }
@@ -36,8 +37,16 @@ export default function PublicJobsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading jobs...</p>
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8 space-y-2">
+          <div className="h-7 w-56 bg-zinc-200 animate-pulse rounded-md" />
+          <div className="h-4 w-72 bg-zinc-200 animate-pulse rounded-md" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <JobCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -73,12 +82,16 @@ export default function PublicJobsPage() {
                         {job.exam_date && (
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            Exam: {new Date(job.exam_date).toLocaleDateString('en-AU')}
+                            Exam:{" "}
+                            {new Date(job.exam_date).toLocaleDateString(
+                              "en-AU",
+                            )}
                           </span>
                         )}
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {job.required_hours} hour{job.required_hours !== 1 ? 's' : ''}
+                          {job.required_hours} hour
+                          {job.required_hours !== 1 ? "s" : ""}
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
@@ -109,7 +122,7 @@ export default function PublicJobsPage() {
 
                     <div className="text-right shrink-0">
                       <p className="text-xs text-zinc-400">
-                        {new Date(job.created_at).toLocaleDateString('en-AU')}
+                        {new Date(job.created_at).toLocaleDateString("en-AU")}
                       </p>
                     </div>
                   </div>

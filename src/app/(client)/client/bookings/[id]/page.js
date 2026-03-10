@@ -1,36 +1,51 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import { BOOKING_STATUS } from '@/lib/constants';
-import Button from '@/components/ui/Button';
-import Card, { CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import Badge from '@/components/ui/Badge';
-import StarRating from '@/components/ui/StarRating';
-import Textarea from '@/components/ui/Textarea';
-import { ArrowLeft, CheckCircle, Music, MapPin, Calendar, Clock, Shield } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency, formatDate, getStatusVariant } from "@/lib/utils";
+import Button from "@/components/ui/Button";
+import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import StarRating from "@/components/ui/StarRating";
+import Textarea from "@/components/ui/Textarea";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import {
+  ArrowLeft,
+  CheckCircle,
+  Music,
+  MapPin,
+  Calendar,
+  Clock,
+  Shield,
+  AlertTriangle,
+} from "lucide-react";
+import Link from "next/link";
+import { BookingDetailSkeleton } from "@/components/ui/Skeleton";
 
 export default function ClientBookingDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const bookingId = params.id;
-  const isNew = searchParams.get('new') === 'true';
+  const isNew = searchParams.get("new") === "true";
 
   const [booking, setBooking] = useState(null);
   const [pianist, setPianist] = useState(null);
   const [existingReview, setExistingReview] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  // Review form
+  const [modal, setModal] = useState({
+    isOpen: false,
+    type: null,
+  });
+
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
+  const [reviewComment, setReviewComment] = useState("");
 
   const supabase = createClient();
 
@@ -41,110 +56,118 @@ export default function ClientBookingDetailPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      // Load booking
+      // ✅ Save current user ID for self-review check
+      setCurrentUserId(user.id);
+
       const { data: bookingData } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('id', bookingId)
+        .from("bookings")
+        .select("*")
+        .eq("id", bookingId)
         .single();
 
       setBooking(bookingData);
 
       if (bookingData) {
-        // Load pianist profile
         const { data: pianistData } = await supabase
-          .from('pianist_profiles')
-          .select('*')
-          .eq('id', bookingData.pianist_id)
+          .from("pianist_profiles")
+          .select("*")
+          .eq("id", bookingData.pianist_id)
           .single();
 
         setPianist(pianistData);
 
-        // Check for existing review
         const { data: review } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('booking_id', bookingId)
-          .eq('reviewer_id', user.id)
+          .from("reviews")
+          .select("*")
+          .eq("booking_id", bookingId)
+          .eq("reviewer_id", user.id)
           .single();
 
         setExistingReview(review);
       }
     } catch (err) {
-      console.error('Error loading booking:', err);
+      console.error("Error loading booking:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const openModal = (type) => setModal({ isOpen: true, type });
+  const closeModal = () => setModal({ isOpen: false, type: null });
+
+  const handleModalConfirm = async () => {
+    if (modal.type === "cancel") await handleCancel();
+    else if (modal.type === "complete") await handleMarkComplete();
+  };
+
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-
     setActionLoading(true);
-    setError('');
-
+    setError("");
     try {
       const { error: cancelError } = await supabase
-        .from('bookings')
+        .from("bookings")
         .update({
-          status: 'cancelled',
+          status: "cancelled",
           cancelled_at: new Date().toISOString(),
         })
-        .eq('id', bookingId);
+        .eq("id", bookingId);
 
       if (cancelError) throw cancelError;
 
-      setBooking((prev) => ({ ...prev, status: 'cancelled' }));
-      setSuccess('Booking cancelled.');
+      setBooking((prev) => ({ ...prev, status: "cancelled" }));
+      setSuccess("Booking cancelled.");
     } catch (err) {
-      setError(err.message || 'Failed to cancel booking');
+      setError(err.message || "Failed to cancel booking");
     } finally {
       setActionLoading(false);
+      closeModal();
     }
   };
 
   const handleMarkComplete = async () => {
-    if (!confirm('Confirm that this session has been completed?')) return;
-
     setActionLoading(true);
-    setError('');
-
+    setError("");
     try {
       const { error: completeError } = await supabase
-        .from('bookings')
+        .from("bookings")
         .update({
-          status: 'completed',
+          status: "completed",
           completed_at: new Date().toISOString(),
         })
-        .eq('id', bookingId);
+        .eq("id", bookingId);
 
       if (completeError) throw completeError;
 
-      setBooking((prev) => ({ ...prev, status: 'completed' }));
-      setSuccess('Session marked as complete! You can now leave a review.');
+      setBooking((prev) => ({ ...prev, status: "completed" }));
+      setSuccess("Session marked as complete! You can now leave a review.");
     } catch (err) {
-      setError(err.message || 'Failed to complete booking');
+      setError(err.message || "Failed to complete booking");
     } finally {
       setActionLoading(false);
+      closeModal();
     }
   };
 
   const handleSubmitReview = async () => {
     if (reviewRating === 0) {
-      setError('Please select a rating');
+      setError("Please select a rating");
       return;
     }
 
     setActionLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       const { data: review, error: reviewError } = await supabase
-        .from('reviews')
+        .from("reviews")
         .insert({
           booking_id: bookingId,
           reviewer_id: user.id,
@@ -159,33 +182,33 @@ export default function ClientBookingDetailPage() {
 
       setExistingReview(review);
       setShowReviewForm(false);
-      setSuccess('Review submitted. Thank you!');
+      setSuccess("Review submitted. Thank you!");
     } catch (err) {
-      setError(err.message || 'Failed to submit review');
+      setError(err.message || "Failed to submit review");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'accepted': return 'info';
-      case 'paid': return 'info';
-      case 'completed': return 'success';
-      case 'cancelled': return 'danger';
-      case 'disputed': return 'danger';
-      case 'refunded': return 'default';
-      default: return 'default';
-    }
+  const modalConfig = {
+    cancel: {
+      title: "Cancel Booking",
+      description:
+        "Are you sure you want to cancel this booking? This action cannot be undone.",
+      confirmLabel: "Yes, Cancel Booking",
+      variant: "danger",
+    },
+    complete: {
+      title: "Mark as Complete",
+      description:
+        "Confirm that this session has been completed. You will be able to leave a review afterwards.",
+      confirmLabel: "Yes, Mark Complete",
+      variant: "success",
+    },
   };
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <p className="text-center text-zinc-500">Loading...</p>
-      </div>
-    );
+    return <BookingDetailSkeleton />;
   }
 
   if (!booking) {
@@ -196,8 +219,23 @@ export default function ClientBookingDetailPage() {
     );
   }
 
+  const activeModal = modal.type ? modalConfig[modal.type] : null;
+
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+      {activeModal && (
+        <ConfirmModal
+          isOpen={modal.isOpen}
+          onClose={closeModal}
+          onConfirm={handleModalConfirm}
+          title={activeModal.title}
+          description={activeModal.description}
+          confirmLabel={activeModal.confirmLabel}
+          variant={activeModal.variant}
+          loading={actionLoading}
+        />
+      )}
+
       <Link
         href="/client/bookings"
         className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 mb-6"
@@ -215,8 +253,8 @@ export default function ClientBookingDetailPage() {
             </h2>
           </div>
           <p className="text-sm text-green-700 mt-1">
-            The pianist has 24 hours to accept or decline.
-            You won&apos;t be charged until they accept.
+            The pianist has 24 hours to accept or decline. You won&apos;t be
+            charged until they accept.
           </p>
         </div>
       )}
@@ -236,16 +274,15 @@ export default function ClientBookingDetailPage() {
       <Card className="mb-6">
         <CardContent>
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-zinc-900">
-              Booking Details
-            </h1>
+            <h1 className="text-xl font-bold text-zinc-900">Booking Details</h1>
+            {/* ✅ Using imported getStatusVariant */}
             <Badge variant={getStatusVariant(booking.status)}>
               {booking.status}
             </Badge>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            {booking.source === 'job_post' ? 'Via job post' : 'Direct booking'}
-            {' · '}ID: {booking.id.slice(0, 8)}
+            {booking.source === "job_post" ? "Via job post" : "Direct booking"}
+            {" · "}ID: {booking.id.slice(0, 8)}
           </p>
         </CardContent>
       </Card>
@@ -270,7 +307,10 @@ export default function ClientBookingDetailPage() {
                     {pianist.name}
                   </Link>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <StarRating rating={Math.round(pianist.avg_rating || 0)} size={12} />
+                    <StarRating
+                      rating={Math.round(pianist.avg_rating || 0)}
+                      size={12}
+                    />
                     <span className="text-xs text-zinc-500">
                       {formatCurrency(pianist.hourly_rate)}/hr
                     </span>
@@ -290,7 +330,9 @@ export default function ClientBookingDetailPage() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2 text-zinc-600">
                 <Calendar className="h-4 w-4" />
-                <span>{booking.exam_type?.toUpperCase()} · {booking.grade}</span>
+                <span>
+                  {booking.exam_type?.toUpperCase()} · {booking.grade}
+                </span>
               </div>
               {booking.exam_date && (
                 <div className="flex items-center gap-2 text-zinc-600">
@@ -300,14 +342,18 @@ export default function ClientBookingDetailPage() {
               )}
               <div className="flex items-center gap-2 text-zinc-600">
                 <Clock className="h-4 w-4" />
-                <span>{booking.required_hours} hour{booking.required_hours !== 1 ? 's' : ''}</span>
+                <span>
+                  {booking.required_hours} hour
+                  {booking.required_hours !== 1 ? "s" : ""}
+                </span>
               </div>
-              {['paid', 'completed'].includes(booking.status) && booking.venue_address && (
-                <div className="flex items-center gap-2 text-zinc-600">
-                  <MapPin className="h-4 w-4" />
-                  <span>{booking.venue_address}</span>
-                </div>
-              )}
+              {["paid", "completed"].includes(booking.status) &&
+                booking.venue_address && (
+                  <div className="flex items-center gap-2 text-zinc-600">
+                    <MapPin className="h-4 w-4" />
+                    <span>{booking.venue_address}</span>
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>
@@ -336,7 +382,9 @@ export default function ClientBookingDetailPage() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-zinc-600">
-                {formatCurrency(booking.hourly_rate)} × {booking.required_hours} hr{booking.required_hours !== 1 ? 's' : ''}
+                {formatCurrency(booking.hourly_rate)} × {booking.required_hours}{" "}
+                hr
+                {booking.required_hours !== 1 ? "s" : ""}
               </span>
               <span className="text-zinc-900">
                 {formatCurrency(booking.total_amount)}
@@ -366,31 +414,34 @@ export default function ClientBookingDetailPage() {
       <Card className="mt-6">
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            {/* Mark Complete */}
-            {['accepted', 'paid'].includes(booking.status) && (
-              <Button onClick={handleMarkComplete} loading={actionLoading}>
+            {["accepted", "paid"].includes(booking.status) && (
+              <Button onClick={() => openModal("complete")}>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Mark as Complete
               </Button>
             )}
 
-            {/* Cancel */}
-            {['pending', 'accepted'].includes(booking.status) && (
-              <Button
-                variant="danger"
-                onClick={handleCancel}
-                loading={actionLoading}
-              >
+            {["pending", "accepted"].includes(booking.status) && (
+              <Button variant="danger" onClick={() => openModal("cancel")}>
                 Cancel Booking
               </Button>
             )}
 
-            {/* Review */}
-            {booking.status === 'completed' && !existingReview && (
-              <Button onClick={() => setShowReviewForm(true)}>
-                Leave a Review
-              </Button>
-            )}
+            {/* ✅ Self-review check */}
+            {booking.status === "completed" &&
+              !existingReview &&
+              (pianist?.user_id !== currentUserId ? (
+                <Button onClick={() => setShowReviewForm(true)}>
+                  Leave a Review
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-zinc-400" />
+                  <p className="text-sm text-zinc-500">
+                    You cannot review yourself.
+                  </p>
+                </div>
+              ))}
           </div>
 
           {/* Existing Review */}
