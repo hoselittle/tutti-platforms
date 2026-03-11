@@ -138,11 +138,20 @@ export default function PianistDashboard() {
     if (!authLoading && user) {
       loadDashboardData();
     }
+
+    // 👉 REALTIME UPDATE LISTENER: 
+    // Listen for the custom event fired by our RealtimeNotifications component
+    window.addEventListener('refresh-bookings', loadDashboardData);
+
+    // 👉 Always clean up the listener when the component unmounts
+    return () => {
+      window.removeEventListener('refresh-bookings', loadDashboardData);
+    };
   }, [authLoading, user, loadDashboardData]);
 
   if (authLoading || loading) {
-  return <DashboardSkeleton statCount={4} />;
-}
+    return <DashboardSkeleton statCount={4} />;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">

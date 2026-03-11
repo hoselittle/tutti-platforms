@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import Button from "@/components/ui/Button";
-import RoleSwitcher from "@/components/layout/RoleSwitcher";
-import ClientNav from "@/components/layout/ClientNav";
-import PianistNav from "@/components/layout/PianistNav";
-import { Menu, X } from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import Button from '@/components/ui/Button';
+import RoleSwitcher from '@/components/layout/RoleSwitcher';
+import ClientNav from '@/components/layout/ClientNav';
+import PianistNav from '@/components/layout/PianistNav';
+import { Menu, X } from 'lucide-react';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export default function Header() {
   const { user, loading, signOut, isPianist, isClient } = useAuth();
@@ -17,21 +17,36 @@ export default function Header() {
   const pathname = usePathname();
 
   // Active states for global links
-  const isSearchActive = pathname?.startsWith("/search");
-  const isPianistRoute = pathname?.startsWith("/pianist");
-  const isClientRoute = pathname?.startsWith("/client");
-  const isJobsActive = pathname?.startsWith("/jobs");
+  const isSearchActive = pathname?.startsWith('/search');
+  const isJobsActive = pathname?.startsWith('/jobs');
+
+  const isPianistRoute = pathname?.startsWith('/pianist');
+  const isClientRoute = pathname?.startsWith('/client');
+
+  // 1. 👉 Determine the "Effective Role" based on URL or User Data
+  let effectiveRole = 'client'; // Default fallback
+  if (isPianistRoute) {
+    effectiveRole = 'pianist';
+  } else if (isClientRoute) {
+    effectiveRole = 'client';
+  } else if (isPianist && !isClient) {
+    effectiveRole = 'pianist'; // If they are ONLY a pianist, force pianist mode on global pages
+  }
+  // Note: If a user has BOTH roles and is on a global page, it safely defaults to 'client'. 
+  // They can always use the RoleSwitcher to jump back to their Pianist dashboard!
+
+  // 2. 👉 Dynamic Logo Href: Logged out -> "/", Logged In -> Their Dashboard (Discovery Page)
+  const logoHref = user ? `/${effectiveRole}/dashboard` : '/';
 
   return (
     <header className="border-b border-zinc-200 bg-white sticky top-0 z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <Link href="/" className="flex items-center">
+          
+          {/* Logo (Now Dynamic!) */}
+          <Link href={logoHref} className="flex items-center">
             <span className="text-xl font-bold text-zinc-900">Tutti</span>
-            <span className="text-xl font-light text-zinc-500 ml-1">
-              Platforms
-            </span>
+            <span className="text-xl font-light text-zinc-500 ml-1">Platforms</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -40,9 +55,7 @@ export default function Header() {
               href="/search"
               className={cn(
                 "transition-colors text-sm",
-                isSearchActive
-                  ? "text-zinc-900 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900",
+                isSearchActive ? "text-zinc-900 font-semibold" : "text-zinc-600 hover:text-zinc-900"
               )}
             >
               Find Pianists
@@ -51,9 +64,7 @@ export default function Header() {
               href="/jobs"
               className={cn(
                 "transition-colors text-sm",
-                isJobsActive
-                  ? "text-zinc-900 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900",
+                isJobsActive ? "text-zinc-900 font-semibold" : "text-zinc-600 hover:text-zinc-900"
               )}
             >
               Browse Jobs
@@ -63,12 +74,10 @@ export default function Header() {
               <>
                 {user ? (
                   <div className="flex items-center gap-4">
-                    {/* Render specific navigation arrays seamlessly! */}
-                    {/* Only show Pianist Nav if they are actively in the /pianist routes */}
-                    {isPianistRoute && <PianistNav />}
-
-                    {/* Only show Client Nav if they are actively in the /client routes */}
-                    {isClientRoute && <ClientNav />}
+                    
+                    {/* 3. 👉 Use effectiveRole to keep navigation visible on global pages! */}
+                    {effectiveRole === 'pianist' && <PianistNav />}
+                    {effectiveRole === 'client' && <ClientNav />}
 
                     <RoleSwitcher />
 
@@ -79,9 +88,7 @@ export default function Header() {
                 ) : (
                   <div className="flex items-center gap-3">
                     <Link href="/login">
-                      <Button variant="ghost" size="sm">
-                        Log In
-                      </Button>
+                      <Button variant="ghost" size="sm">Log In</Button>
                     </Link>
                     <Link href="/register">
                       <Button size="sm">Sign Up</Button>
@@ -108,9 +115,7 @@ export default function Header() {
               href="/search"
               className={cn(
                 "block py-2 text-sm transition-colors",
-                isSearchActive
-                  ? "text-zinc-900 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900",
+                isSearchActive ? "text-zinc-900 font-semibold" : "text-zinc-600 hover:text-zinc-900"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -120,9 +125,7 @@ export default function Header() {
               href="/jobs"
               className={cn(
                 "block py-2 text-sm transition-colors",
-                isJobsActive
-                  ? "text-zinc-900 font-semibold"
-                  : "text-zinc-600 hover:text-zinc-900",
+                isJobsActive ? "text-zinc-900 font-semibold" : "text-zinc-600 hover:text-zinc-900"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -133,17 +136,18 @@ export default function Header() {
               <>
                 {user ? (
                   <>
-                    {isPianistRoute && (
-                      <PianistNav
-                        isMobile
-                        onLinkClick={() => setMobileMenuOpen(false)}
+                    {/* 4. 👉 Use effectiveRole for Mobile Nav too! */}
+                    {effectiveRole === 'pianist' && (
+                      <PianistNav 
+                        isMobile 
+                        onLinkClick={() => setMobileMenuOpen(false)} 
                       />
                     )}
 
-                    {isClientRoute && (
-                      <ClientNav
-                        isMobile
-                        onLinkClick={() => setMobileMenuOpen(false)}
+                    {effectiveRole === 'client' && (
+                      <ClientNav 
+                        isMobile 
+                        onLinkClick={() => setMobileMenuOpen(false)} 
                       />
                     )}
 
@@ -166,18 +170,12 @@ export default function Header() {
                   </>
                 ) : (
                   <div className="space-y-2 pt-2">
-                    <Link
-                      href="/login"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
+                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
                       <Button variant="secondary" size="sm" className="w-full">
                         Log In
                       </Button>
                     </Link>
-                    <Link
-                      href="/register"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
+                    <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
                       <Button size="sm" className="w-full">
                         Sign Up
                       </Button>

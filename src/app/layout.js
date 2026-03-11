@@ -1,9 +1,8 @@
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
-
-// 1. 👉 Bring your Header and Footer imports back!
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import RealtimeNotifications from '@/components/layout/RealtimeNotifications';
 
 export const metadata = {
   title: 'Tutti Platforms',
@@ -34,15 +33,15 @@ export default function RootLayout({ children }) {
             },
           }} 
         />
+
+        <RealtimeNotifications />
         
-        {/* 2. 👉 Put the Header back at the top of the app! */}
         <Header />
         
         <main className="flex-grow">
           {children}
         </main>
         
-        {/* 3. 👉 Put the Footer back at the bottom! */}
         <Footer />
         
       </body>
